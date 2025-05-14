@@ -1,0 +1,13 @@
+{
+    "name": "jerekarppinen/huutonet-api-query",
+    "description": "Query huuto.net API for sold items",
+    "type": "project",
+    "require": {
+        "guzzlehttp/guzzle": "^7.9"
+    },
+    "authors": [
+        {
+            "name": "Jere Karppinen"
+        }
+    ]
+}
