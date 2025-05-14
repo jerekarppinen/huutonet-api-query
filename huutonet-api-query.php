@@ -1,6 +1,13 @@
 <?php
 require 'vendor/autoload.php';
 
+$env = parse_ini_file('.env');
+
+define("VHS", 110);
+define("DVD", value: 87);
+define("BLURAY", value: 845);
+define("JULISTEET", value: 213);
+
 function getSessionId($username, $password): string {
     $url = "https://api.huuto.net/1.1/authentication";
 
@@ -20,33 +27,16 @@ function getSessionId($username, $password): string {
     return $data["authentication"]["token"]["id"];
 }
 
-function fetchClosedItemsWrapper($session_id) {
-    $client = new GuzzleHttp\Client();
-
-    $url = "https://api.huuto.net/1.1/items";
-
-    $res = $client->request("GET", $url,
-    [
-        'headers' => ["X-HuutoApiToken" => $session_id],
-        'query' => [
-            'category' => 110,
-            'sort' => 'newest',
-            'status' => 'closed',
-            'limit', 500
-        ]
-    ]);
-
-    $contents = $res->getBody()->getContents();
-
-    $data = json_decode($contents, true);
-
-    return $data;
-}
-
-function getAllItemsInDateRange($category, $fromDate, $sessionId) {
+function getAllItemsInDateRange(
+    $category,
+    $maxDate,
+    $sessionId,
+    $minPrice = null,
+    $maxPrice = null
+    ): array {
     $url = "https://api.huuto.net/1.1/items";
     $client = new GuzzleHttp\Client();
-    $fromTimestamp = strtotime($fromDate);
+    $fromTimestamp = strtotime($maxDate);
     $allFilteredItems = [];
     $page = 1;
     $hasMoreItems = true;
@@ -77,7 +67,7 @@ function getAllItemsInDateRange($category, $fromDate, $sessionId) {
         $allItemsTooOld = true;
         
         foreach ($data['items'] as $item) {
-            // Guard clause 1: Skip if item is too old
+            // Skip if item is too old
             $itemTimestamp = strtotime($item['listTime']);
             if ($itemTimestamp < $fromTimestamp) {
                 continue;
@@ -85,23 +75,22 @@ function getAllItemsInDateRange($category, $fromDate, $sessionId) {
             
             $allItemsTooOld = false;
             
-            // Guard clause 2: Skip if item has no bids
+            // Skip if item has no bids
             if ($item['bidderCount'] === 0) {
                 continue;
             }
             
-            // Add more guard clauses here as needed:
-            // Guard clause 3: Example - Skip if price is too low
-            // if ($item['currentPrice'] < $minPrice) {
-            //     continue;
-            // }
+            if ($minPrice !== null && $item['currentPrice'] < $minPrice) {
+                continue;
+            }
+
+            if ($maxPrice !== null && $item['currentPrice'] > $maxPrice) {
+                continue;
+            }
             
-            // Guard clause 4: Example - Skip if specific seller
-            // if ($item['sellerId'] == $excludeSellerId) {
-            //     continue;
-            // }
             
             // Item passed all filters, add it to valid items
+            $item['category'] = $category;
             $validItemsOnPage[] = $item;
         }
         
@@ -119,32 +108,49 @@ function getAllItemsInDateRange($category, $fromDate, $sessionId) {
     return $allFilteredItems;
 }
 
-$sessionId = getSessionId("jere.karppinen", "@qguWDe8tv!39I#i");
+$sessionId = getSessionId($env['username'], $env['password']);
 
-$allItems = getAllItemsInDateRange(110, '2025-04-13', $sessionId);
+$categories = [VHS, DVD, BLURAY, JULISTEET];
 
-// $closedItemsWrapper = fetchClosedItemsWrapper($sessionId);
+$allItems = [];
 
-// $closedItems = $closedItemsWrapper['items'];
+$start_time = microtime(true);
 
-// print_r($closedItems);
+foreach($categories as $category) {
+    $categoryItems = getAllItemsInDateRange($category, '2025-04-13', $sessionId, 100, 1000);
+    $allItems = array_merge($allItems, $categoryItems);
+}
 
-// $filteredItems = [];
+$end_time = microtime(true);
 
-for($i = 0, $n = sizeof($allItems); $i < $n; $i++) {
+$execution_time = ($end_time - $start_time);
+
+// Convert seconds to hours, minutes, and seconds
+$hours = floor($execution_time / 3600);
+$minutes = floor((fmod($execution_time, 3600)) / 60); // Use fmod() for float modulo
+$seconds = fmod($execution_time, 60); // Use fmod() here as well
+
+
+$n = sizeof($allItems);
+
+for($i = 0; $i < $n; $i++) {
     $currentItem = $allItems[$i];
 
     $title = $currentItem['title'];
     $seller = $currentItem['seller'];
     $currentPrice = $currentItem['currentPrice'];
+    $category = $currentItem['category'];
+    $closingTime = $currentItem['closingTime'];
     $altenativeLink = $currentItem['links']['alternative'];
 
     print_r($altenativeLink . "\r\n");
-    print_r("---" . $title . "\r\n");
-    print_r("---" . $seller . "\r\n");
-    print_r("---" . $currentPrice . "\r\n\r\n");
+    print_r(value: "closed:" . $closingTime . "\r\n");
+    print_r(value: "category:" . $category . "\r\n");
+    print_r("title:" . $title . "\r\n");
+    print_r("seller:" . $seller . "\r\n");
+    print_r("price:" . $currentPrice . "\r\n\r\n");
 }
 
-
+echo "\r\n\r\nScript Execution Time = " . $hours . " hours, " . $minutes . " minutes, " . number_format($seconds, 2) . " seconds";
 
 ?>
