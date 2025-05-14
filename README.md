@@ -2,7 +2,7 @@
 
 `composer install`
 
-Create an .env file with the following contents:
+Create an `.env` file with the following contents:
 
 ```bash
 username="your-username"
