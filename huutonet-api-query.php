@@ -8,6 +8,21 @@ define("DVD", value: 87);
 define("BLURAY", value: 845);
 define("JULISTEET", value: 213);
 
+function getConstantNameByValue($value): ?string {
+    $constants = get_defined_constants(true);
+    
+    // We're looking in user-defined constants
+    if (isset($constants['user'])) {
+        foreach ($constants['user'] as $name => $constValue) {
+            if ($constValue === $value) {
+                return $name;
+            }
+        }
+    }
+    
+    return null; // Return null if no matching constant is found
+}
+
 function getSessionId($username, $password): string {
     $url = "https://api.huuto.net/1.1/authentication";
 
@@ -116,8 +131,12 @@ $allItems = [];
 
 $start_time = microtime(true);
 
+$maxDate = '2025-04-13';
+$minPrice = 100;
+$maxPrice = 1000;
+
 foreach($categories as $category) {
-    $categoryItems = getAllItemsInDateRange($category, '2025-04-13', $sessionId, 100, 1000);
+    $categoryItems = getAllItemsInDateRange($category, $maxDate, $sessionId, $minPrice, $maxPrice);
     $allItems = array_merge($allItems, $categoryItems);
 }
 
@@ -133,6 +152,12 @@ $seconds = fmod($execution_time, 60); // Use fmod() here as well
 
 $n = sizeof($allItems);
 
+$file = "results.csv";
+
+$header = "title;price;category;closingTime;seller;link" . PHP_EOL;
+
+file_put_contents($file, $header);
+
 for($i = 0; $i < $n; $i++) {
     $currentItem = $allItems[$i];
 
@@ -143,12 +168,23 @@ for($i = 0; $i < $n; $i++) {
     $closingTime = $currentItem['closingTime'];
     $altenativeLink = $currentItem['links']['alternative'];
 
+    $date = new DateTime($closingTime);
+    $categoryName = getConstantNameByValue($category);
+
+
+    file_put_contents(
+        $file, $title . ";" . $currentPrice . ";" . $categoryName . ";" . $date->format('Y.m.d') . ";" . $seller . ";" . $altenativeLink . PHP_EOL,
+        FILE_APPEND
+    );
+
     print_r($altenativeLink . "\r\n");
-    print_r(value: "closed:" . $closingTime . "\r\n");
-    print_r(value: "category:" . $category . "\r\n");
+    print_r("closed:" . $closingTime . "\r\n");
+    print_r("category:" . $category . "\r\n");
     print_r("title:" . $title . "\r\n");
     print_r("seller:" . $seller . "\r\n");
     print_r("price:" . $currentPrice . "\r\n\r\n");
+
+    
 }
 
 echo "\r\n\r\nScript Execution Time = " . $hours . " hours, " . $minutes . " minutes, " . number_format($seconds, 2) . " seconds";
